@@ -154,8 +154,8 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
 
       if (event.nativeEvent.touches.length === 1) {
         const {
-          locationX: x,
-          locationY: y,
+          pageX: x,
+          pageY: y,
           timestamp: t,
         } = event.nativeEvent.touches[0]
 
@@ -180,18 +180,18 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
     handleTouchStartRotate(event: GestureResponderEvent) {
       if (event.nativeEvent.touches.length === 1) {
         internals.rotateStart.set(
-          event.nativeEvent.touches[0].locationX,
-          event.nativeEvent.touches[0].locationY,
+          event.nativeEvent.touches[0].pageX,
+          event.nativeEvent.touches[0].pageY,
         )
       } else if (event.nativeEvent.touches.length === 2) {
         const x =
           0.5 *
-          (event.nativeEvent.touches[0].locationX +
-            event.nativeEvent.touches[1].locationX)
+          (event.nativeEvent.touches[0].pageX +
+            event.nativeEvent.touches[1].pageX)
         const y =
           0.5 *
-          (event.nativeEvent.touches[0].locationY +
-            event.nativeEvent.touches[1].locationY)
+          (event.nativeEvent.touches[0].pageY +
+            event.nativeEvent.touches[1].pageY)
 
         internals.rotateStart.set(x, y)
       }
@@ -201,11 +201,11 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
       // Ensures this isn't undefined.
       if (event.nativeEvent.touches.length === 2) {
         const dx =
-          event.nativeEvent.touches[0].locationX -
-          event.nativeEvent.touches[1].locationX
+          event.nativeEvent.touches[0].pageX -
+          event.nativeEvent.touches[1].pageX
         const dy =
-          event.nativeEvent.touches[0].locationY -
-          event.nativeEvent.touches[1].locationY
+          event.nativeEvent.touches[0].pageY -
+          event.nativeEvent.touches[1].pageY
         const distance = Math.sqrt(dx * dx + dy * dy)
 
         internals.dollyStart = distance
@@ -215,18 +215,18 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
     handleTouchStartPan(event: GestureResponderEvent) {
       if (event.nativeEvent.touches.length === 1) {
         internals.panStart.set(
-          event.nativeEvent.touches[0].locationX,
-          event.nativeEvent.touches[0].locationY,
+          event.nativeEvent.touches[0].pageX,
+          event.nativeEvent.touches[0].pageY,
         )
       } else if (event.nativeEvent.touches.length === 2) {
         const x =
           0.5 *
-          (event.nativeEvent.touches[0].locationX +
-            event.nativeEvent.touches[1].locationX)
+          (event.nativeEvent.touches[0].pageX +
+            event.nativeEvent.touches[1].pageX)
         const y =
           0.5 *
-          (event.nativeEvent.touches[0].locationY +
-            event.nativeEvent.touches[1].locationY)
+          (event.nativeEvent.touches[0].pageY +
+            event.nativeEvent.touches[1].pageY)
 
         internals.panStart.set(x, y)
       }
@@ -292,18 +292,18 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
     handleTouchMoveRotate(event: GestureResponderEvent) {
       if (event.nativeEvent.touches.length === 1) {
         internals.rotateEnd.set(
-          event.nativeEvent.locationX,
-          event.nativeEvent.locationY,
+          event.nativeEvent.pageX,
+          event.nativeEvent.pageY,
         )
       } else if (event.nativeEvent.touches.length === 2) {
         const x =
           0.5 *
-          (event.nativeEvent.touches[0].locationX +
-            event.nativeEvent.touches[1].locationX)
+          (event.nativeEvent.touches[0].pageX +
+            event.nativeEvent.touches[1].pageX)
         const y =
           0.5 *
-          (event.nativeEvent.touches[0].locationY +
-            event.nativeEvent.touches[1].locationY)
+          (event.nativeEvent.touches[0].pageY +
+            event.nativeEvent.touches[1].pageY)
         internals.rotateEnd.set(x, y)
       }
 
@@ -329,11 +329,11 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
       // Ensures this isn't undefined.
       if (event.nativeEvent.touches.length === 2) {
         const dx =
-          event.nativeEvent.touches[0].locationX -
-          event.nativeEvent.touches[1].locationX
+          event.nativeEvent.touches[0].pageX -
+          event.nativeEvent.touches[1].pageX
         const dy =
-          event.nativeEvent.touches[0].locationY -
-          event.nativeEvent.touches[1].locationY
+          event.nativeEvent.touches[0].pageY -
+          event.nativeEvent.touches[1].pageY
         const distance = Math.sqrt(dx * dx + dy * dy)
 
         internals.dollyEnd = distance
@@ -395,19 +395,16 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
 
     handleTouchMovePan(event: GestureResponderEvent) {
       if (event.nativeEvent.touches.length === 1) {
-        internals.panEnd.set(
-          event.nativeEvent.locationX,
-          event.nativeEvent.locationY,
-        )
+        internals.panEnd.set(event.nativeEvent.pageX, event.nativeEvent.pageY)
       } else if (event.nativeEvent.touches.length === 2) {
         const x =
           0.5 *
-          (event.nativeEvent.touches[0].locationX +
-            event.nativeEvent.touches[1].locationX)
+          (event.nativeEvent.touches[0].pageX +
+            event.nativeEvent.touches[1].pageX)
         const y =
           0.5 *
-          (event.nativeEvent.touches[0].locationY +
-            event.nativeEvent.touches[1].locationY)
+          (event.nativeEvent.touches[0].pageY +
+            event.nativeEvent.touches[1].pageY)
         internals.panEnd.set(x, y)
       } else {
         return
@@ -476,16 +473,16 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
       const touch1 = event.nativeEvent.touches[0]
       const touch2 = event.nativeEvent.touches[1]
 
-      const dx = touch2.locationX - touch1.locationX
-      const dy = touch2.locationY - touch1.locationY
+      const dx = touch2.pageX - touch1.pageX
+      const dy = touch2.pageY - touch1.pageY
       const distance = Math.sqrt(dx * dx + dy * dy)
 
       internals.initialDistance = distance
       internals.initialRotation = Math.atan2(dy, dx)
       internals.lastMoveTimestamp = event.nativeEvent.timestamp
 
-      const midX = (touch1.locationX + touch2.locationX) / 2
-      const midY = (touch1.locationY + touch2.locationY) / 2
+      const midX = (touch1.pageX + touch2.pageX) / 2
+      const midY = (touch1.pageY + touch2.pageY) / 2
       internals.rotateStart.set(midX, midY)
     },
 
@@ -495,8 +492,8 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
       const touch1 = event.nativeEvent.touches[0]
       const touch2 = event.nativeEvent.touches[1]
 
-      const dx = touch2.locationX - touch1.locationX
-      const dy = touch2.locationY - touch1.locationY
+      const dx = touch2.pageX - touch1.pageX
+      const dy = touch2.pageY - touch1.pageY
       const distance = Math.sqrt(dx * dx + dy * dy)
 
       const currentAngle = Math.atan2(dy, dx)
@@ -505,8 +502,8 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
         currentAngle,
       )
 
-      const midX = (touch1.locationX + touch2.locationX) / 2
-      const midY = (touch1.locationY + touch2.locationY) / 2
+      const midX = (touch1.pageX + touch2.pageX) / 2
+      const midY = (touch1.pageY + touch2.pageY) / 2
       const deltaY = midY - internals.rotateStart.y
 
       const timeDelta =
