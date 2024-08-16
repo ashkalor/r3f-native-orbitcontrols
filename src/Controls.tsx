@@ -11,12 +11,15 @@ import { GestureResponderEvent, LayoutChangeEvent } from "react-native"
 import { invalidate } from "@react-three/fiber/native"
 
 const EPSILON = 0.000001
+const ZOOM_SPEED_THRESHOLD = 0.5
+const ROTATION_THRESHOLD = 0.01
 
-const STATE = {
-  NONE: 0,
-  ROTATE: 1,
-  DOLLY: 2,
-}
+export const CONTROLMODES = {
+  ORBIT: "orbit",
+  MAP: "map",
+} as const
+
+export type ControlMode = (typeof CONTROLMODES)[keyof typeof CONTROLMODES]
 
 const partialScope = {
   camera: undefined as PerspectiveCamera | OrthographicCamera | undefined,
@@ -57,11 +60,31 @@ const partialScope = {
   ignoreQuickPress: false,
 }
 
-export function createControls() {
+// Helper function to normalize the angle and find the shortest angle for rotation.
+function getShortestAngle(from: number, to: number): number {
+  const diff = ((to - from + Math.PI) % (2 * Math.PI)) - Math.PI
+  return diff < -Math.PI ? diff + 2 * Math.PI : diff
+}
+
+export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
   let height = 0
+
+  const STATE =
+    mode === CONTROLMODES.MAP
+      ? {
+          NONE: 0,
+          PAN: 1,
+          ROTATE_OR_ZOOM: 2,
+        }
+      : {
+          NONE: 0,
+          ROTATE: 1,
+          DOLLY: 2,
+        }
 
   const scope = {
     ...partialScope,
+    mode,
     target: new Vector3(),
     onChange: (event: { target: typeof partialScope }) => {},
   }
@@ -82,8 +105,13 @@ export function createControls() {
     sphericalDelta: new Spherical(),
 
     scale: 1,
-
     state: STATE.NONE,
+
+    initialDistance: 0,
+    initialRotation: 0,
+    lastMoveTimestamp: 0,
+    touch1Start: { x: 0, y: 0 },
+    touch2Start: { x: 0, y: 0 },
   }
 
   const functions = {
@@ -209,24 +237,47 @@ export function createControls() {
       if (scope.enablePan) this.handleTouchStartPan(event)
     },
 
+    // onTouchStart now handles both the modes.
     onTouchStart(event: GestureResponderEvent) {
-      switch (event.nativeEvent.touches.length) {
-        case STATE.ROTATE:
-          if (!scope.enableRotate) return
-          this.handleTouchStartRotate(event)
-          internals.state = STATE.ROTATE
+      if (!scope.enabled) return
 
-          break
+      if (scope.mode === CONTROLMODES.MAP) {
+        switch (event.nativeEvent.touches.length) {
+          case 1:
+            if (scope.enablePan) {
+              this.handleTouchStartPan(event)
+              internals.state = STATE.PAN!
+            }
+            break
 
-        case STATE.DOLLY:
-          if (!scope.enableZoom && !scope.enablePan) return
-          this.handleTouchStartDollyPan(event)
-          internals.state = STATE.DOLLY
+          case 2:
+            this.handleTouchStartRotateOrZoom(event)
+            internals.state = STATE.ROTATE_OR_ZOOM!
 
-          break
+            break
 
-        default:
-          internals.state = STATE.NONE
+          default:
+            internals.state = STATE.NONE
+        }
+      } else {
+        switch (event.nativeEvent.touches.length) {
+          case 1:
+            if (scope.enableRotate) {
+              this.handleTouchStartRotate(event)
+              internals.state = STATE.ROTATE!
+            }
+            break
+
+          case 2:
+            if (scope.enableZoom) this.handleTouchStartDolly(event)
+            if (scope.enablePan) this.handleTouchStartPan(event)
+            internals.state = STATE.DOLLY!
+
+            break
+
+          default:
+            internals.state = STATE.NONE
+        }
       }
     },
 
@@ -374,23 +425,116 @@ export function createControls() {
       if (scope.enablePan) this.handleTouchMovePan(event)
     },
 
+    // Modified onTouchMove to work with both modes
     onTouchMove(event: GestureResponderEvent) {
+      if (!scope.enabled) return
+
       switch (internals.state) {
         case STATE.ROTATE:
-          if (!scope.enableRotate) return
-          this.handleTouchMoveRotate(event)
-          update()
+          if (scope.mode === CONTROLMODES.ORBIT && scope.enableRotate) {
+            this.handleTouchMoveRotate(event)
+            update()
+          }
           break
 
         case STATE.DOLLY:
-          if (!scope.enableZoom && !scope.enablePan) return
-          this.handleTouchMoveDollyPan(event)
-          update()
+          if (scope.mode === CONTROLMODES.ORBIT) {
+            if (scope.enableZoom) this.handleTouchMoveDolly(event)
+            if (scope.enablePan) this.handleTouchMovePan(event)
+            update()
+          }
+          break
+
+        case STATE.PAN:
+          if (scope.mode === CONTROLMODES.MAP && scope.enablePan) {
+            this.handleTouchMovePan(event)
+            update()
+          }
+          break
+
+        case STATE.ROTATE_OR_ZOOM:
+          if (scope.mode === CONTROLMODES.MAP) {
+            this.handleTouchMoveRotateOrZoom(event)
+            update()
+          }
           break
 
         default:
           internals.state = STATE.NONE
       }
+    },
+    // Functions for map controls
+
+    handleTilt(dy: number) {
+      const tiltSpeed = 0.005
+      this.rotateUp(dy * tiltSpeed)
+    },
+
+    handleTouchStartRotateOrZoom(event: GestureResponderEvent) {
+      if (event.nativeEvent.touches.length !== 2) return
+
+      const touch1 = event.nativeEvent.touches[0]
+      const touch2 = event.nativeEvent.touches[1]
+
+      const dx = touch2.locationX - touch1.locationX
+      const dy = touch2.locationY - touch1.locationY
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      internals.initialDistance = distance
+      internals.initialRotation = Math.atan2(dy, dx)
+      internals.lastMoveTimestamp = event.nativeEvent.timestamp
+
+      const midX = (touch1.locationX + touch2.locationX) / 2
+      const midY = (touch1.locationY + touch2.locationY) / 2
+      internals.rotateStart.set(midX, midY)
+    },
+
+    handleTouchMoveRotateOrZoom(event: GestureResponderEvent) {
+      if (event.nativeEvent.touches.length !== 2) return
+
+      const touch1 = event.nativeEvent.touches[0]
+      const touch2 = event.nativeEvent.touches[1]
+
+      const dx = touch2.locationX - touch1.locationX
+      const dy = touch2.locationY - touch1.locationY
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      const currentAngle = Math.atan2(dy, dx)
+      const angleDelta = getShortestAngle(
+        internals.initialRotation,
+        currentAngle,
+      )
+
+      const midX = (touch1.locationX + touch2.locationX) / 2
+      const midY = (touch1.locationY + touch2.locationY) / 2
+      const deltaY = midY - internals.rotateStart.y
+
+      const timeDelta =
+        event.nativeEvent.timestamp - internals.lastMoveTimestamp
+      const distanceDelta = Math.abs(distance - internals.initialDistance)
+      const zoomSpeed = distanceDelta / timeDelta
+
+      if (zoomSpeed > ZOOM_SPEED_THRESHOLD && scope.enableZoom) {
+        // Handle zoom
+        const scale = distance / internals.initialDistance
+        this.dollyOut(Math.pow(scale, scope.zoomSpeed))
+      }
+
+      if (Math.abs(angleDelta) > ROTATION_THRESHOLD) {
+        // Handle rotation
+        this.rotateLeft(-angleDelta * scope.rotateSpeed)
+      }
+
+      // Handle tilt only when deltaY is greater than 2
+      if (Math.abs(deltaY) > 2) {
+        const tiltSpeed = 0.01 * scope.rotateSpeed
+        this.rotateUp(deltaY * tiltSpeed)
+      }
+
+      internals.rotateStart.set(midX, midY)
+      internals.initialDistance = distance
+      internals.initialRotation = currentAngle
+      internals.lastMoveTimestamp = event.nativeEvent.timestamp
     },
   }
 
@@ -566,10 +710,11 @@ type Partial<T> = {
   [P in keyof T]?: T[P]
 }
 
-export type OrbitControlsProps = Partial<
+// Update type definitions
+export type ControlsProps = Partial<
   Omit<ReturnType<typeof createControls>["scope"], "camera">
 >
 
-export type OrbitControlsChangeEvent = Parameters<
+export type ControlsChangeEvent = Parameters<
   ReturnType<typeof createControls>["scope"]["onChange"]
 >[0]
