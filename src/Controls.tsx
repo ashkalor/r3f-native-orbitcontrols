@@ -462,11 +462,6 @@ export function createControls(mode: ControlMode = CONTROLMODES.ORBIT) {
     },
     // Functions for map controls
 
-    handleTilt(dy: number) {
-      const tiltSpeed = 0.005
-      this.rotateUp(dy * tiltSpeed)
-    },
-
     handleTouchStartRotateOrZoom(event: GestureResponderEvent) {
       if (event.nativeEvent.touches.length !== 2) return
 
